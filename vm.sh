@@ -5,7 +5,7 @@ set -euo pipefail
 # 🚀 ZVPS - Lightning-Fast VM Manager
 # =============================
 # Version: 2.1
-# Author: Your Name
+# Author: ZDEV07
 # Powered by ZVPS Technology
 # =============================
 
