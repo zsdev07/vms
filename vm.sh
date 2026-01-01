@@ -353,33 +353,49 @@ create_new_vm() {
 }
 
 # =============================
-# 📦 Setup VM Image
+# 📦 Setup VM Image (FIXED)
 # =============================
 setup_vm_image() {
     print_status "PROGRESS" "Downloading and preparing image..."
     
+    # IMPORTANT: Create VM directory FIRST before any operations
     mkdir -p "$VM_DIR"
+    
+    # Verify directory was created
+    if [[ ! -d "$VM_DIR" ]]; then
+        print_status "ERROR" "Failed to create VM directory: $VM_DIR"
+        exit 1
+    fi
     
     if [[ -f "$IMG_FILE" ]]; then
         print_status "INFO" "Image file already exists. Skipping download."
     else
         print_status "PROGRESS" "Downloading image from $IMG_URL..."
-        if wget --progress=bar:force --tries=3 --timeout=30 "$IMG_URL" -O "$IMG_FILE.tmp"; then
-            mv "$IMG_FILE.tmp" "$IMG_FILE"
-            print_status "SUCCESS" "Image downloaded successfully"
+        print_status "INFO" "Saving to: $IMG_FILE.tmp"
+        
+        # Download with better error handling
+        if wget --progress=bar:force --tries=3 --timeout=30 -O "$IMG_FILE.tmp" "$IMG_URL" 2>&1; then
+            if [[ -f "$IMG_FILE.tmp" ]]; then
+                mv "$IMG_FILE.tmp" "$IMG_FILE"
+                print_status "SUCCESS" "Image downloaded successfully"
+            else
+                print_status "ERROR" "Downloaded file not found"
+                exit 1
+            fi
         else
-            print_status "ERROR" "Failed to download image"
+            print_status "ERROR" "Failed to download image from $IMG_URL"
+            rm -f "$IMG_FILE.tmp" 2>/dev/null
             exit 1
         fi
     fi
     
     # Resize disk
     print_status "PROGRESS" "Resizing disk to $DISK_SIZE..."
-    if qemu-img resize "$IMG_FILE" "$DISK_SIZE" &>/dev/null; then
+    if qemu-img resize "$IMG_FILE" "$DISK_SIZE" 2>&1; then
         print_status "SUCCESS" "Disk resized to $DISK_SIZE"
     else
-        print_status "WARN" "Creating new disk image..."
-        qemu-img create -f qcow2 "$IMG_FILE" "$DISK_SIZE" &>/dev/null
+        print_status "WARN" "Resize failed, creating new disk image..."
+        qemu-img create -f qcow2 "$IMG_FILE" "$DISK_SIZE" 2>&1
     fi
 
     # Cloud-init configuration
@@ -408,7 +424,7 @@ instance-id: iid-zvps-$VM_NAME
 local-hostname: $HOSTNAME
 EOF
 
-    if cloud-localds "$SEED_FILE" user-data meta-data &>/dev/null; then
+    if cloud-localds "$SEED_FILE" user-data meta-data 2>&1; then
         print_status "SUCCESS" "Cloud-init seed created"
     else
         print_status "ERROR" "Failed to create cloud-init seed"
